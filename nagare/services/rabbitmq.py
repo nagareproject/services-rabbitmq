@@ -15,10 +15,9 @@ from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
 import amqpstorm
+import transaction
 
 from nagare.services import plugin
-
-amqpstorm.channel0.MAX_CHANNELS = 1000
 
 
 class Message(amqpstorm.message.Message):
@@ -94,7 +93,7 @@ class RabbitMQ(plugin.Plugin):
 
 
 class Channel(plugin.Plugin):
-    LOAD_PRIORITY = 15
+    # LOAD_PRIORITY = 15
     CONFIG_SPEC = {
         'exchange': 'string(default=None)',
         'mode': 'string(default="direct")',
@@ -104,7 +103,8 @@ class Channel(plugin.Plugin):
         'durable': 'boolean(default=False)',
         'prefetch': 'integer(default=None)',
         'auto_decode': 'boolean(default=False)',
-        'pool': 'integer(default=1)'
+        'pool': 'integer(default=1)',
+        'transaction': 'boolean(default=True)'
     }
 
     def __init__(
@@ -112,7 +112,7 @@ class Channel(plugin.Plugin):
             name, dist,
             rabbitmq_service, exchange=None, queue=None,
             mode='direct', route='', auto_delete=True, durable=False, prefetch=None,
-            auto_decode=False, pool=1,
+            auto_decode=False, pool=1, transaction=True,
             **config
     ):
         super(Channel, self).__init__(name, dist)
@@ -125,6 +125,7 @@ class Channel(plugin.Plugin):
         self.prefetch = prefetch
         self.auto_decode = auto_decode
         self.pool_size = pool
+        self.transaction = transaction
 
         self.pool = None
         self.out_channel = self.in_channel = None
@@ -141,7 +142,8 @@ class Channel(plugin.Plugin):
             queue, auto_delete, durable,
             route,
             exchange, mode,
-            prefetch, auto_decode, pool
+            prefetch, auto_decode,
+            pool, transaction
     ):
         self.out_channel = self.rabbitmq.create_channel()
 
@@ -160,6 +162,25 @@ class Channel(plugin.Plugin):
 
     def handle_start(self, app):
         self._handle_start(**self.plugin_config)
+
+    def handle_request(self, chain, **params):
+        if self.transaction:
+            self.out_channel.tx.select()
+            transaction.get().join(self)
+
+        return chain.next(**params)
+
+    def sortKey(self):
+        return '~sqlz'  # Commit after the SQLAlchemy transaction
+
+    def tpc_finish(self, transaction):
+        self.out_channel.tx.commit()
+
+    def abort(self, transaction):
+        self.out_channel.tx.rollback()
+
+    tpc_abort = abort
+    tpc_begin = tpc_commit = tpc_vote = commit = lambda self, transaction: None
 
     def send_raw_message(self, message, mandatory=False, immediate=False):
         if self.exchange is not None:

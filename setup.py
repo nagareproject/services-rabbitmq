@@ -34,7 +34,8 @@ setup(
     use_scm_version=True,
     install_requires=[
         'futures; python_version == "2.7"',
-        'amqp-storm',
+        'AMQPStorm',
+        'nagare-services-transaction',
         'nagare-server'
     ],
     entry_points='''
