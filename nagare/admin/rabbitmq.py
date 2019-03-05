@@ -16,11 +16,14 @@ class Command(command.Command):
     WITH_STARTED_SERVICES = True
 
     def run_with_channel(self, channel, rabbitmq_service, services_service, **config):
-        try:
-            channel = services_service[channel]
-            return self.run(rabbitmq_service, channel, **config)
-        except KeyboardInterrupt:
-            return 0
+        channel = services_service[channel]
+
+        status = self.run(rabbitmq_service, channel, **config)
+
+        channel.close()
+        rabbitmq_service.close()
+
+        return status
 
     def _run(self, command_names, **params):
         return super(Command, self)._run(command_names, self.run_with_channel, **params)
@@ -34,14 +37,14 @@ class Receive(Command):
         self.nb = 0
 
     def set_arguments(self, parser):
-        parser.add_argument('channel', help='')
+        parser.add_argument('channel', help='name of the channel service to receive from')
 
-        super(Command, self).set_arguments(parser)
+        super(Receive, self).set_arguments(parser)
 
     def handle_request(self, msg):
-        print(('- %d ' % self.nb) + ('-' * 20))
+        print('- {} --------------------'.format(self.nb))
 
-        print('Body: ' + msg.body.decode('utf-8'))
+        print('Body: {}'.format(msg.body))
         print('')
 
         del msg.delivery_info['channel']
@@ -49,13 +52,13 @@ class Receive(Command):
         print('Delivery info:')
         padding = len(max(msg.delivery_info, key=len)) if msg.properties else ''
         for k, v in sorted(msg.delivery_info.items()):
-            print(' - %s: %s' % (k.ljust(padding), v))
+            print(' - {}: {}'.format(k.ljust(padding), v))
         print('')
 
         print('Properties:')
         padding = len(max(msg.properties, key=len)) if msg.properties else ''
         for k, v in sorted(msg.properties.items()):
-            print(' - %s: %s' % (k.ljust(padding), v))
+            print(' - {}: {}'.format(k.ljust(padding), v))
 
         self.nb += 1
         print('')
@@ -69,7 +72,11 @@ class Receive(Command):
             )
         )
         channel.on_receive(self.handle_request)
-        rabbitmq.start()
+
+        try:
+            channel.start_consuming()
+        except KeyboardInterrupt:
+            channel.stop_consuming()
 
         return 0
 
@@ -80,11 +87,11 @@ class Send(Command):
     def set_arguments(self, parser):
         parser.add_argument(
             '-l', '--loop', action='store_true',
-            help=''
+            help='infinite loop sending <data> each 2 secondes'
         )
 
-        parser.add_argument('channel', help='')
-        parser.add_argument('data', help='')
+        parser.add_argument('channel', help='name of the channel service to send to')
+        parser.add_argument('data', help='string to sent')
 
         super(Send, self).set_arguments(parser)
 
@@ -97,12 +104,18 @@ class Send(Command):
                 channel.route
             )
         )
-        while True:
+        if 1:
             channel.send_raw(data)
+        else:
+            try:
+                while True:
+                    channel.send_raw(data)
 
-            if not loop:
-                break
+                    if not loop:
+                        break
 
-            time.sleep(2)
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                pass
 
         return 0
