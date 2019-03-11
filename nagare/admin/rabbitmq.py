@@ -30,7 +30,7 @@ class Command(command.Command):
 
 
 class Receive(Command):
-    DESC = 'Receive data on a RabbitMQ queue'
+    DESC = 'receive data on a RabbitMQ queue'
 
     def __init__(self, name, dist, **config):
         super(Receive, self).__init__(name, dist, **config)
@@ -47,11 +47,12 @@ class Receive(Command):
         print('Body: {}'.format(msg.body))
         print('')
 
-        del msg.delivery_info['channel']
+        delivery_info = msg.delivery_info
+        del delivery_info['channel']
 
         print('Delivery info:')
-        padding = len(max(msg.delivery_info, key=len)) if msg.properties else ''
-        for k, v in sorted(msg.delivery_info.items()):
+        padding = len(max(delivery_info, key=len)) if msg.properties else ''
+        for k, v in sorted(delivery_info.items()):
             print(' - {}: {}'.format(k.ljust(padding), v))
         print('')
 
@@ -82,7 +83,7 @@ class Receive(Command):
 
 
 class Send(Command):
-    DESC = 'Send data on a RabbitMQ exchange'
+    DESC = 'send data on a RabbitMQ exchange'
 
     def set_arguments(self, parser):
         parser.add_argument(
