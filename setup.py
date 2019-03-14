@@ -40,7 +40,7 @@ setup(
     ],
     entry_points='''
         [nagare.commands]
-        rabbitmq = nagare.admin.command:Commands
+        rabbitmq = nagare.admin.rabbitmq:Commands
 
         [nagare.commands.rabbitmq]
         receive = nagare.admin.rabbitmq:Receive

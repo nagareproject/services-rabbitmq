@@ -12,6 +12,10 @@ import time
 from nagare.admin import command
 
 
+class Commands(command.Commands):
+    DESC = 'RabbitMQ messaging subcommands'
+
+
 class Command(command.Command):
     WITH_STARTED_SERVICES = True
 
@@ -92,7 +96,7 @@ class Send(Command):
         )
 
         parser.add_argument('channel', help='name of the channel service to send to')
-        parser.add_argument('data', help='string to sent')
+        parser.add_argument('data', help='string to send')
 
         super(Send, self).set_arguments(parser)
 
