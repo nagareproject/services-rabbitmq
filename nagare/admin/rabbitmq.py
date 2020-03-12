@@ -109,18 +109,15 @@ class Send(Command):
                 channel.route
             )
         )
-        if 1:
-            channel.send_raw(data)
-        else:
-            try:
-                while True:
-                    channel.send_raw(data)
+        try:
+            while True:
+                channel.send_raw(data)
 
-                    if not loop:
-                        break
+                if not loop:
+                    break
 
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                pass
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
 
         return 0

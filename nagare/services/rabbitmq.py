@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 import amqpstorm
 import transaction
 
-from nagare.services import plugin
+from nagare.services import plugin, proxy
 
 
 class Message(amqpstorm.message.Message):
@@ -46,7 +46,7 @@ class RabbitMQ(plugin.Plugin):
         password='string(default="guest")',
         vhost='string(default="/")',
         connect_timeout='float(default=0)',
-        heartbeat='integer(default=2)',
+        heartbeat='integer(default=60)',
         lazy='boolean(default=False)'
     )
     CONFIG_TRANSLATIONS = {
@@ -92,31 +92,14 @@ class RabbitMQ(plugin.Plugin):
         self._channel0.send_heartbeat()
 
 
-class Channel(plugin.Plugin):
-    # LOAD_PRIORITY = 15
-    CONFIG_SPEC = {
-        'exchange': 'string(default=None)',
-        'mode': 'string(default="direct")',
-        'queue': 'string(default=None)',
-        'route': 'string(default="")',
-        'auto_delete': 'boolean(default=True)',
-        'durable': 'boolean(default=False)',
-        'prefetch': 'integer(default=None)',
-        'auto_decode': 'boolean(default=False)',
-        'pool': 'integer(default=1)',
-        'transaction': 'boolean(default=True)'
-    }
-
+class _Channel(object):
     def __init__(
             self,
-            name, dist,
             rabbitmq_service, exchange=None, queue=None,
-            mode='direct', route='', auto_delete=True, durable=False, prefetch=None,
+            route='', durable=False, prefetch=None,
             auto_decode=False, pool=1, transaction=True,
             **config
     ):
-        super(Channel, self).__init__(name, dist)
-
         self.rabbitmq = rabbitmq_service
         self.exchange = exchange
         self.queue = queue
@@ -137,31 +120,41 @@ class Channel(plugin.Plugin):
         self.in_channel.close(reply_code, reply_text)
         self.in_channel = None
 
-    def _handle_start(
+    def create_out_channel(self, **params):
+        return self.rabbitmq.create_channel(**params)
+
+    def create_in_channel(self, **params):
+        return self.rabbitmq.create_channel(**params)
+
+    @staticmethod
+    def declare_in_exchange(channel, exchange, mode, **params):
+        channel.exchange.declare(exchange, mode, **params)
+
+    @staticmethod
+    def declare_in_queue(channel, queue, **params):
+        channel.queue.declare(queue, **params)
+
+    def handle_start(
             self,
             queue, auto_delete, durable,
             route,
             exchange, mode,
-            prefetch, auto_decode,
-            pool, transaction
+            prefetch, **config
     ):
-        self.out_channel = self.rabbitmq.create_channel()
+        self.out_channel = self.create_out_channel()
 
-        in_channel = self.rabbitmq.create_channel(prefetch=prefetch)
+        in_channel = self.create_in_channel(prefetch=prefetch)
 
         if exchange is not None:
-            in_channel.exchange.declare(exchange, mode)
+            self.declare_in_exchange(in_channel, exchange, mode)
 
         if queue is not None:
-            in_channel.queue.declare(queue, auto_delete=auto_delete, durable=durable)
+            self.declare_in_queue(in_channel, queue, auto_delete=auto_delete, durable=durable)
 
         if (queue is not None) and (exchange is not None):
             in_channel.queue.bind(queue, exchange, route)
 
         self.in_channel = in_channel
-
-    def handle_start(self, app):
-        self._handle_start(**self.plugin_config)
 
     def handle_request(self, chain, **params):
         if self.transaction:
@@ -237,3 +230,46 @@ class Channel(plugin.Plugin):
         if self.prefetch is not None:
             delivery_tag = message.delivery_info['delivery_tag']
             self.in_channel.basic.reject(delivery_tag, multiple=multiple, requeue=requeue)
+
+
+@proxy.proxy_to(_Channel, lambda self: self.channels[self.name], {'handle_start'})
+class Channel(plugin.Plugin):
+    # LOAD_PRIORITY = 15
+    CONFIG_SPEC = {
+        'exchange': 'string(default=None)',
+        'mode': 'string(default="direct")',
+        'queue': 'string(default=None)',
+        'route': 'string(default="")',
+        'auto_delete': 'boolean(default=True)',
+        'durable': 'boolean(default=False)',
+        'prefetch': 'integer(default=None)',
+        'auto_decode': 'boolean(default=False)',
+        'pool': 'integer(default=1)',
+        'transaction': 'boolean(default=True)'
+    }
+    channels = {}
+
+    def __init__(
+            self,
+            name, dist,
+            rabbitmq_service, exchange=None, queue=None,
+            mode='direct', route='', auto_delete=True, durable=False, prefetch=None,
+            auto_decode=False, pool=1, transaction=True,
+            services_service=None,
+            **config
+    ):
+        services_service(super(Channel, self).__init__, name, dist, **config)
+
+        self.queue = queue
+        self.exchange = exchange
+        self.route = route
+
+        self.__class__.channels[name] = _Channel(
+            rabbitmq_service, exchange=exchange, queue=queue,
+            mode=mode, route=route, auto_delete=auto_delete, durable=durable, prefetch=prefetch,
+            auto_decode=auto_decode, pool=pool, transaction=transaction,
+            **config
+        )
+
+    def handle_start(self, app):
+        self.channels[self.name].handle_start(**self.plugin_config)
