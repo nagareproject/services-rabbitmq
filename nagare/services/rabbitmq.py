@@ -1,7 +1,7 @@
 # Encoding: utf-8
 
 # --
-# Copyright (c) 2008-2019 Net-ng.
+# Copyright (c) 2008-2020 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -47,7 +47,8 @@ class RabbitMQ(plugin.Plugin):
         vhost='string(default="/")',
         connect_timeout='float(default=0)',
         heartbeat='integer(default=60)',
-        lazy='boolean(default=False)'
+        lazy='boolean(default=False)',
+        ssl='boolean(default=False)'
     )
     CONFIG_TRANSLATIONS = {
         'host': 'hostname',
@@ -258,7 +259,13 @@ class Channel(plugin.Plugin):
             services_service=None,
             **config
     ):
-        services_service(super(Channel, self).__init__, name, dist, **config)
+        services_service(
+            super(Channel, self).__init__, name, dist,
+            exchange=exchange, queue=queue,
+            mode=mode, route=route, auto_delete=auto_delete, durable=durable, prefetch=prefetch,
+            auto_decode=auto_decode, pool=pool, transaction=transaction,
+            **config
+        )
 
         self.queue = queue
         self.exchange = exchange
