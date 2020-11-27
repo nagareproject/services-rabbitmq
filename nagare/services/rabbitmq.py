@@ -13,6 +13,10 @@
 
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
 
 import amqpstorm
 import transaction
@@ -40,6 +44,7 @@ class RabbitMQ(plugin.Plugin):
     LOAD_PRIORITY = 10
     CONFIG_SPEC = dict(
         plugin.Plugin.CONFIG_SPEC,
+        uri='string(default=None)',
         host='string(default="127.0.0.1")',
         port='integer(default=5672)',
         user='string(default="guest")',
@@ -77,6 +82,18 @@ class RabbitMQ(plugin.Plugin):
 
     def handle_start(self, app):
         config = {self.CONFIG_TRANSLATIONS.get(k, k): v for k, v in self.plugin_config.items()}
+
+        uri = config.pop('uri')
+        if uri:
+            uri = urlparse.urlparse(uri)
+            if uri.scheme == 'amqp':
+                config.update({
+                    'hostname': uri.hostname or '127.0.0.1',
+                    'port': uri.port or 5672,
+                    'username': uri.username or 'guest',
+                    'password': uri.password or 'guest',
+                    'virtual_host': uri.path or '/'
+                })
 
         self.connection = amqpstorm.Connection(**config)
 
