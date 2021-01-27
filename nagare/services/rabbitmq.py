@@ -253,18 +253,19 @@ class _Channel(object):
 @proxy.proxy_to(_Channel, lambda self: self.channels[self.name], {'handle_start'})
 class Channel(plugin.Plugin):
     # LOAD_PRIORITY = 15
-    CONFIG_SPEC = {
-        'exchange': 'string(default=None)',
-        'mode': 'string(default="direct")',
-        'queue': 'string(default=None)',
-        'route': 'string(default="")',
-        'auto_delete': 'boolean(default=True)',
-        'durable': 'boolean(default=False)',
-        'prefetch': 'integer(default=None)',
-        'auto_decode': 'boolean(default=False)',
-        'pool': 'integer(default=1)',
-        'transaction': 'boolean(default=True)'
-    }
+    CONFIG_SPEC = dict(
+        plugin.Plugin.CONFIG_SPEC,
+        exchange='string(default=None)',
+        mode='string(default="direct")',
+        queue='string(default=None)',
+        route='string(default="")',
+        auto_delete='boolean(default=True)',
+        durable='boolean(default=False)',
+        prefetch='integer(default=None)',
+        auto_decode='boolean(default=False)',
+        pool='integer(default=1)',
+        transaction='boolean(default=True)'
+    )
     channels = {}
 
     def __init__(
