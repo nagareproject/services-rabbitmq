@@ -212,7 +212,7 @@ class _Channel(object):
         self.send_raw_message(message, mandatory, immediate)
 
     def _on_receive(self, consumer, body, channel, method, properties):
-        message = Message(channel, self.auto_decode, body=body, method=method, properties=properties)
+        message = Message(channel, body=body, method=method, properties=properties, auto_decode=self.auto_decode)
         self.pool.submit(consumer, message).add_done_callback(lambda future: future.result())
 
     def on_receive(self, consumer, exclusive=False, consumer_tag=''):
