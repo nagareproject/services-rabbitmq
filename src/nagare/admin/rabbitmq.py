@@ -1,5 +1,5 @@
 # --
-# Copyright (c) 2008-2022 Net-ng.
+# Copyright (c) 2008-2023 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -71,9 +71,7 @@ class Receive(Command):
     def run(self, rabbitmq, channel, **config):
         print(
             'Listening on queue <{}>, exchange <{}>, route <{}>...'.format(
-                channel.queue,
-                channel.exchange,
-                channel.route
+                channel.queue, channel.exchange, channel.route
             )
         )
         channel.on_receive(self.handle_request)
@@ -90,10 +88,7 @@ class Send(Command):
     DESC = 'send data on a RabbitMQ exchange'
 
     def set_arguments(self, parser):
-        parser.add_argument(
-            '-l', '--loop', action='store_true',
-            help='infinite loop sending <data> each 2 secondes'
-        )
+        parser.add_argument('-l', '--loop', action='store_true', help='infinite loop sending <data> each 2 secondes')
 
         parser.add_argument('channel', help='name of the channel service to send to')
         parser.add_argument('data', help='string to send')
@@ -102,13 +97,7 @@ class Send(Command):
 
     @staticmethod
     def run(rabbitmq, channel, loop, data):
-        print(
-            'Sending on queue <{}>, exchange <{}>, route <{}>'.format(
-                channel.queue,
-                channel.exchange,
-                channel.route
-            )
-        )
+        print('Sending on queue <{}>, exchange <{}>, route <{}>'.format(channel.queue, channel.exchange, channel.route))
         try:
             while True:
                 channel.send_raw(data)

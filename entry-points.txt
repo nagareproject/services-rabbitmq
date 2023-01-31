@@ -1,0 +1,9 @@
+[nagare.commands]
+rabbitmq = nagare.admin.rabbitmq:Commands
+
+[nagare.commands.rabbitmq]
+receive = nagare.admin.rabbitmq:Receive
+send = nagare.admin.rabbitmq:Send
+
+[nagare.services]
+rabbitmq = nagare.services.rabbitmq:RabbitMQ

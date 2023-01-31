@@ -1,7 +1,7 @@
 # Encoding: utf-8
 
 # --
-# Copyright (c) 2008-2022 Net-ng.
+# Copyright (c) 2008-2023 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -9,38 +9,35 @@
 # this distribution.
 # --
 
-"""Provides the classes to interact with RabbitMQ"""
+"""Provides the classes to interact with RabbitMQ."""
 
-from functools import partial
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+
 try:
     import urlparse
 except ImportError:
     import urllib.parse as urlparse
 
 import amqpstorm
-import transaction
-
 from nagare.services import plugin, proxy
+import transaction
 
 
 class Message(amqpstorm.message.Message):
-
     @property
     def delivery_info(self):
         return dict(self.method, channel=self.channel)
 
     def __str__(self):
         return 'Message[body: {}, delivery_info: {},  properties: {}]'.format(
-            self.body,
-            self.delivery_info,
-            self.properties
+            self.body, self.delivery_info, self.properties
         )
 
 
 class RabbitMQ(plugin.Plugin):
-    """The RabbitMQ client service
-    """
+    """The RabbitMQ client service."""
+
     LOAD_PRIORITY = 10
     CONFIG_SPEC = dict(
         plugin.Plugin.CONFIG_SPEC,
@@ -48,18 +45,18 @@ class RabbitMQ(plugin.Plugin):
         host='string(default="127.0.0.1")',
         port='integer(default=5672)',
         user='string(default="guest")',
-        password='string(default="guest")',
+        password='string(default="guest")',  # noqa: S106
         vhost='string(default="/")',
         connect_timeout='float(default=0)',
         heartbeat='integer(default=60)',
         lazy='boolean(default=False)',
-        ssl='boolean(default=False)'
+        ssl='boolean(default=False)',
     )
     CONFIG_TRANSLATIONS = {
         'host': 'hostname',
         'user': 'username',
         'vhost': 'virtual_host',
-        'connect_timeout': 'timeout'
+        'connect_timeout': 'timeout',
     }
 
     def __init__(self, name, dist, **config):
@@ -87,19 +84,20 @@ class RabbitMQ(plugin.Plugin):
         if uri:
             uri = urlparse.urlparse(uri)
             if uri.scheme == 'amqp':
-                config.update({
-                    'hostname': uri.hostname or '127.0.0.1',
-                    'port': uri.port or 5672,
-                    'username': uri.username or 'guest',
-                    'password': uri.password or 'guest',
-                    'virtual_host': uri.path or '/'
-                })
+                config.update(
+                    {
+                        'hostname': uri.hostname or '127.0.0.1',
+                        'port': uri.port or 5672,
+                        'username': uri.username or 'guest',
+                        'password': uri.password or 'guest',
+                        'virtual_host': uri.path or '/',
+                    }
+                )
 
         self.connection = amqpstorm.Connection(**config)
 
     def create_channel(self, prefetch=None):
-        """Create a channel on the connection
-        """
+        """Create a channel on the connection."""
         channel = self.connection.channel()
         if prefetch:
             channel.basic.qos(prefetch)
@@ -112,11 +110,17 @@ class RabbitMQ(plugin.Plugin):
 
 class _Channel(object):
     def __init__(
-            self,
-            rabbitmq_service, exchange=None, queue=None,
-            route='', durable=False, prefetch=None,
-            auto_decode=False, pool=1, transaction=True,
-            **config
+        self,
+        rabbitmq_service,
+        exchange=None,
+        queue=None,
+        route='',
+        durable=False,
+        prefetch=None,
+        auto_decode=False,
+        pool=1,
+        transaction=True,
+        **config,
     ):
         self.rabbitmq = rabbitmq_service
         self.exchange = exchange
@@ -152,13 +156,7 @@ class _Channel(object):
     def declare_in_queue(channel, queue, **params):
         channel.queue.declare(queue, **params)
 
-    def handle_start(
-            self,
-            queue, auto_delete, durable,
-            route,
-            exchange, mode,
-            prefetch, **config
-    ):
+    def handle_start(self, queue, auto_delete, durable, route, exchange, mode, prefetch, **config):
         self.out_channel = self.create_out_channel()
 
         in_channel = self.create_in_channel(prefetch=prefetch)
@@ -203,11 +201,7 @@ class _Channel(object):
         self.send_raw_message(message, mandatory, immediate)
 
     def send(self, correlation_id, app_id, content_type, body, mandatory=False, immediate=False, **properties):
-        properties.update({
-            'correlation_id': correlation_id,
-            'app_id': app_id,
-            'content_type': content_type
-        })
+        properties.update({'correlation_id': correlation_id, 'app_id': app_id, 'content_type': content_type})
         message = Message.create(self.out_channel, body, properties)
         self.send_raw_message(message, mandatory, immediate)
 
@@ -217,10 +211,11 @@ class _Channel(object):
 
     def on_receive(self, consumer, exclusive=False, consumer_tag=''):
         self.in_channel.basic.consume(
-            partial(self._on_receive, consumer), self.queue,
+            partial(self._on_receive, consumer),
+            self.queue,
             no_ack=not self.prefetch,
             exclusive=exclusive,
-            consumer_tag=consumer_tag
+            consumer_tag=consumer_tag,
         )
 
     def start_consuming(self):
@@ -252,7 +247,6 @@ class _Channel(object):
 
 @proxy.proxy_to(_Channel, lambda self: self.channels[self.name], {'handle_start'})
 class Channel(plugin.Plugin):
-    # LOAD_PRIORITY = 15
     CONFIG_SPEC = dict(
         plugin.Plugin.CONFIG_SPEC,
         exchange='string(default=None)',
@@ -264,25 +258,43 @@ class Channel(plugin.Plugin):
         prefetch='integer(default=None)',
         auto_decode='boolean(default=False)',
         pool='integer(default=1)',
-        transaction='boolean(default=True)'
+        transaction='boolean(default=True)',
     )
     channels = {}
 
     def __init__(
-            self,
-            name, dist,
-            rabbitmq_service, exchange=None, queue=None,
-            mode='direct', route='', auto_delete=True, durable=False, prefetch=None,
-            auto_decode=False, pool=1, transaction=True,
-            services_service=None,
-            **config
+        self,
+        name,
+        dist,
+        rabbitmq_service,
+        exchange=None,
+        queue=None,
+        mode='direct',
+        route='',
+        auto_delete=True,
+        durable=False,
+        prefetch=None,
+        auto_decode=False,
+        pool=1,
+        transaction=True,
+        services_service=None,
+        **config,
     ):
         services_service(
-            super(Channel, self).__init__, name, dist,
-            exchange=exchange, queue=queue,
-            mode=mode, route=route, auto_delete=auto_delete, durable=durable, prefetch=prefetch,
-            auto_decode=auto_decode, pool=pool, transaction=transaction,
-            **config
+            super(Channel, self).__init__,
+            name,
+            dist,
+            exchange=exchange,
+            queue=queue,
+            mode=mode,
+            route=route,
+            auto_delete=auto_delete,
+            durable=durable,
+            prefetch=prefetch,
+            auto_decode=auto_decode,
+            pool=pool,
+            transaction=transaction,
+            **config,
         )
 
         self.queue = queue
@@ -290,10 +302,18 @@ class Channel(plugin.Plugin):
         self.route = route
 
         self.__class__.channels[name] = _Channel(
-            rabbitmq_service, exchange=exchange, queue=queue,
-            mode=mode, route=route, auto_delete=auto_delete, durable=durable, prefetch=prefetch,
-            auto_decode=auto_decode, pool=pool, transaction=transaction,
-            **config
+            rabbitmq_service,
+            exchange=exchange,
+            queue=queue,
+            mode=mode,
+            route=route,
+            auto_delete=auto_delete,
+            durable=durable,
+            prefetch=prefetch,
+            auto_decode=auto_decode,
+            pool=pool,
+            transaction=transaction,
+            **config,
         )
 
     def handle_start(self, app):
