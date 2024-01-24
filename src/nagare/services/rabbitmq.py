@@ -1,7 +1,7 @@
 # Encoding: utf-8
 
 # --
-# Copyright (c) 2008-2023 Net-ng.
+# Copyright (c) 2008-2024 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -11,8 +11,8 @@
 
 """Provides the classes to interact with RabbitMQ."""
 
-from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import urlparse
@@ -20,8 +20,10 @@ except ImportError:
     import urllib.parse as urlparse
 
 import amqpstorm
-from nagare.services import plugin, proxy
 import transaction
+
+from nagare.services import proxy, plugin
+from nagare.services.transaction import Transaction
 
 
 class Message(amqpstorm.message.Message):
@@ -38,7 +40,7 @@ class Message(amqpstorm.message.Message):
 class RabbitMQ(plugin.Plugin):
     """The RabbitMQ client service."""
 
-    LOAD_PRIORITY = 10
+    LOAD_PRIORITY = Transaction.LOAD_PRIORITY + 1
     CONFIG_SPEC = dict(
         plugin.Plugin.CONFIG_SPEC,
         uri='string(default=None)',
